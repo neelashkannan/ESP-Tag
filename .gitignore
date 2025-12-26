@@ -1,0 +1,9 @@
+.pio/
+.vscode/
+__pycache__/
+*.pyc
+.DS_Store
+node_modules/
+build/
+dist/
+*.egg-info/
