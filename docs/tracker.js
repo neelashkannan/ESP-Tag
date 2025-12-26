@@ -9,7 +9,7 @@
 // CONFIGURATION - Must match ESP32 firmware UUIDs
 // ══════════════════════════════════════════════════════════════
 const CONFIG = {
-    DEVICE_NAME: "ESP32-AirTag",
+    DEVICE_NAME: "Neelash's GasTag",
     SERVICE_UUID: "8ec76ea3-6668-48da-9866-75be8bc86f4d",
     DISTANCE_CHAR_UUID: "8ec76ea3-6668-48da-9866-75be8bc86f4e",
     RSSI_CHAR_UUID: "8ec76ea3-6668-48da-9866-75be8bc86f4f",

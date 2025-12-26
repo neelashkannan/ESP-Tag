@@ -24,7 +24,7 @@
 #define BUILTIN_LED     8       // Same as RGB LED
 
 // ============== BLE Configuration ==============
-#define DEVICE_NAME "ESP32-AirTag"
+#define DEVICE_NAME "Neelash's GasTag"
 #define BEACON_UUID "8ec76ea3-6668-48da-9866-75be8bc86f4d"
 #define MANUFACTURER_ID 0xFFFF
 
