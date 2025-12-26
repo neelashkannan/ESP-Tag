@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#09090B">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>ESP32 AirTag Tracker</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="icon-192.svg">
+    <link rel="icon" type="image/svg+xml" href="icon-192.svg">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        :root {
+            --bg-primary: #09090B;
+            --bg-secondary: #18181B;
+            --bg-tertiary: #27272A;
+            --text-primary: #FAFAFA;
+            --text-secondary: #71717A;
+            --accent-dim: #3F3F46;
+            --color-excellent: #10B981;
+            --color-good: #34D399;
+            --color-medium: #FBBF24;
+            --color-weak: #F97316;
+            --color-poor: #EF4444;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            min-height: 100dvh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        .container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            position: relative;
+        }
+
+        /* Aura Animation */
+        .aura-container {
+            position: relative;
+            width: 280px;
+            height: 280px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .aura-ring {
+            position: absolute;
+            border-radius: 50%;
+            border: 2px solid var(--accent-dim);
+            opacity: 0;
+            animation: pulse 3s ease-in-out infinite;
+        }
+
+        .aura-ring:nth-child(1) { width: 180px; height: 180px; animation-delay: 0s; }
+        .aura-ring:nth-child(2) { width: 220px; height: 220px; animation-delay: 0.3s; }
+        .aura-ring:nth-child(3) { width: 260px; height: 260px; animation-delay: 0.6s; }
+        .aura-ring:nth-child(4) { width: 300px; height: 300px; animation-delay: 0.9s; }
+
+        .aura-core {
+            position: absolute;
+            width: 160px;
+            height: 160px;
+            border-radius: 50%;
+            border: 4px solid var(--accent-dim);
+            animation: breathe 2s ease-in-out infinite;
+            transition: border-color 0.5s ease;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 0; transform: scale(0.9); }
+            50% { opacity: 0.4; transform: scale(1); }
+        }
+
+        @keyframes breathe {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.08); }
+        }
+
+        /* Distance Display */
+        .distance-display {
+            text-align: center;
+            z-index: 10;
+        }
+
+        .distance-value {
+            font-size: 72px;
+            font-weight: 700;
+            letter-spacing: -3px;
+            color: var(--accent-dim);
+            transition: color 0.3s ease;
+            line-height: 1;
+        }
+
+        .distance-unit {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 4px;
+            margin-top: 8px;
+        }
+
+        /* Info Panel */
+        .info-panel {
+            margin-top: 40px;
+            text-align: center;
+        }
+
+        .info-row {
+            font-size: 13px;
+            color: var(--text-secondary);
+            margin: 8px 0;
+            letter-spacing: 1px;
+        }
+
+        .info-row span {
+            color: var(--text-primary);
+        }
+
+        /* Buttons */
+        .btn {
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            border: none;
+            padding: 16px 32px;
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: 600;
+            letter-spacing: 1px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-transform: uppercase;
+        }
+
+        .btn:active {
+            transform: scale(0.97);
+            background: var(--bg-tertiary);
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #10B981, #059669);
+            color: white;
+        }
+
+        .btn-primary:active {
+            background: linear-gradient(135deg, #059669, #047857);
+        }
+
+        .btn-calibrate {
+            margin-top: 30px;
+            padding: 14px 28px;
+            font-size: 12px;
+        }
+
+        /* Status Bar */
+        .status-bar {
+            background: var(--bg-secondary);
+            padding: 18px 20px;
+            text-align: center;
+            font-size: 12px;
+            font-weight: 600;
+            letter-spacing: 1.5px;
+            color: var(--text-secondary);
+            transition: color 0.3s ease;
+        }
+
+        /* Connect Screen */
+        .connect-screen {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 30px;
+        }
+
+        .connect-icon {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            background: var(--bg-secondary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 10px;
+        }
+
+        .connect-icon svg {
+            width: 50px;
+            height: 50px;
+            fill: var(--text-secondary);
+        }
+
+        .connect-title {
+            font-size: 24px;
+            font-weight: 600;
+        }
+
+        .connect-subtitle {
+            font-size: 14px;
+            color: var(--text-secondary);
+            text-align: center;
+            max-width: 280px;
+            line-height: 1.5;
+        }
+
+        /* Tracker Screen (hidden by default) */
+        .tracker-screen {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+            height: 100%;
+        }
+
+        .tracker-screen.active {
+            display: flex;
+        }
+
+        .connect-screen.hidden {
+            display: none;
+        }
+
+        /* Error state */
+        .error-message {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            color: var(--color-poor);
+            padding: 12px 20px;
+            border-radius: 8px;
+            font-size: 13px;
+            margin-top: 20px;
+            text-align: center;
+            max-width: 300px;
+        }
+
+        /* Unsupported browser */
+        .unsupported {
+            text-align: center;
+            padding: 40px;
+        }
+
+        .unsupported h2 {
+            color: var(--color-poor);
+            margin-bottom: 15px;
+        }
+
+        .unsupported p {
+            color: var(--text-secondary);
+            line-height: 1.6;
+        }
+
+        /* Responsive */
+        @media (max-height: 600px) {
+            .aura-container {
+                width: 200px;
+                height: 200px;
+            }
+            .aura-core { width: 120px; height: 120px; }
+            .aura-ring:nth-child(1) { width: 140px; height: 140px; }
+            .aura-ring:nth-child(2) { width: 170px; height: 170px; }
+            .aura-ring:nth-child(3) { width: 200px; height: 200px; }
+            .aura-ring:nth-child(4) { width: 230px; height: 230px; }
+            .distance-value { font-size: 56px; }
+            .info-panel { margin-top: 20px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Connect Screen -->
+        <div class="connect-screen" id="connectScreen">
+            <div class="connect-icon">
+                <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M17.71 7.71L12 2L6.29 7.71C6.19 7.81 6.13 7.93 6.08 8.06C6.03 8.18 6 8.32 6 8.46C6 8.6 6.03 8.74 6.08 8.87C6.13 9 6.19 9.11 6.29 9.21L12 15L17.71 9.29C17.81 9.19 17.87 9.07 17.92 8.94C17.97 8.82 18 8.68 18 8.54C18 8.4 17.97 8.26 17.92 8.13C17.87 8 17.81 7.88 17.71 7.78V7.71ZM12 12.17L8.83 9L12 5.83L15.17 9L12 12.17ZM12 14L8.41 10.41L5.71 13.12C5.61 13.22 5.55 13.34 5.5 13.46C5.45 13.59 5.42 13.73 5.42 13.87C5.42 14.01 5.45 14.15 5.5 14.28C5.55 14.4 5.61 14.52 5.71 14.62L12 21L18.29 14.71C18.39 14.61 18.45 14.49 18.5 14.37C18.55 14.24 18.58 14.1 18.58 13.96C18.58 13.82 18.55 13.68 18.5 13.55C18.45 13.43 18.39 13.31 18.29 13.21L15.59 10.5L12 14Z"/>
+                </svg>
+            </div>
+            <h1 class="connect-title">ESP32 AirTag</h1>
+            <p class="connect-subtitle">Connect to your ESP32 beacon to start tracking distance in real-time</p>
+            <button class="btn btn-primary" id="connectBtn">Start Scanning</button>
+            <div id="errorContainer"></div>
+        </div>
+
+        <!-- Tracker Screen -->
+        <div class="tracker-screen" id="trackerScreen">
+            <div class="aura-container">
+                <div class="aura-ring" id="ring1"></div>
+                <div class="aura-ring" id="ring2"></div>
+                <div class="aura-ring" id="ring3"></div>
+                <div class="aura-ring" id="ring4"></div>
+                <div class="aura-core" id="auraCore"></div>
+                <div class="distance-display">
+                    <div class="distance-value" id="distanceValue">—</div>
+                    <div class="distance-unit">meters</div>
+                </div>
+            </div>
+            
+            <div class="info-panel">
+                <div class="info-row">SIGNAL: <span id="rssiValue">-- dBm</span></div>
+                <div class="info-row">CONFIDENCE: <span id="confValue">--%</span></div>
+            </div>
+            
+            <button class="btn btn-calibrate" id="calibrateBtn">Calibrate at 1m</button>
+        </div>
+    </div>
+
+    <div class="status-bar" id="statusBar">READY TO CONNECT</div>
+
+    <!-- Unsupported Browser Template -->
+    <template id="unsupportedTemplate">
+        <div class="unsupported">
+            <h2>Browser Not Supported</h2>
+            <p>Web Bluetooth is required for this app.<br><br>
+            Please use <strong>Chrome</strong>, <strong>Edge</strong>, or <strong>Samsung Internet</strong> on Android, 
+            or <strong>Bluefy</strong> browser on iOS.</p>
+        </div>
+    </template>
+
+    <script src="tracker.js"></script>
+</body>
+</html>

@@ -1,0 +1,24 @@
+{
+    "name": "ESP32 AirTag Tracker",
+    "short_name": "AirTag Tracker",
+    "description": "Track your ESP32 AirTag beacon in real-time using Bluetooth",
+    "start_url": "/ESP-Tag/",
+    "display": "standalone",
+    "background_color": "#09090B",
+    "theme_color": "#09090B",
+    "orientation": "portrait",
+    "icons": [
+        {
+            "src": "icon-192.svg",
+            "sizes": "192x192",
+            "type": "image/svg+xml",
+            "purpose": "any maskable"
+        },
+        {
+            "src": "icon-512.svg",
+            "sizes": "512x512",
+            "type": "image/svg+xml",
+            "purpose": "any maskable"
+        }
+    ]
+}

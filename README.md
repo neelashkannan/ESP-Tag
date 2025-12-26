@@ -1,6 +1,12 @@
 # ESP32-C6 AirTag Clone
 
-A DIY AirTag-like BLE beacon using the **QS-ESP32-C6 N16** board with a Python tracker application.
+A DIY AirTag-like BLE beacon using the **QS-ESP32-C6 N16** board with a **Web App** and Python tracker.
+
+## 🌐 Live Web Tracker
+
+**[Open Web Tracker](https://neelashkannan.github.io/ESP-Tag/)** — Track your ESP32 AirTag directly from your phone's browser!
+
+> Works on Chrome/Edge (Android), Samsung Internet, or Bluefy (iOS)
 
 ## 📁 Project Structure
 
@@ -9,6 +15,10 @@ esp32-airtag/
 ├── platformio.ini          # PlatformIO configuration
 ├── src/
 │   └── main.cpp            # ESP32 BLE beacon firmware
+├── docs/
+│   ├── index.html          # Web tracker (GitHub Pages)
+│   ├── tracker.js          # Web Bluetooth tracking logic
+│   └── manifest.json       # PWA manifest
 ├── python-tracker/
 │   ├── tracker.py          # Python GUI tracker application
 │   └── requirements.txt    # Python dependencies
@@ -82,6 +92,52 @@ BLE Beacon started advertising!
 | 🔴 Red/White | Flash | Proximity alert |
 | 🟡 Yellow | 2 blinks | Disconnected |
 | 🟠 Orange | 2 blinks | Low battery warning |
+
+---
+
+## 📱 Web Tracker (Mobile)
+
+The easiest way to track your ESP32 AirTag is using the **Web Bluetooth Tracker**. No app installation required!
+
+### Supported Browsers
+
+| Platform | Browser | Status |
+|----------|---------|--------|
+| Android | Chrome | ✅ Full Support |
+| Android | Edge | ✅ Full Support |
+| Android | Samsung Internet | ✅ Full Support |
+| iOS | Bluefy | ✅ Requires Bluefy Browser |
+| iOS | Safari | ❌ Not Supported |
+| Desktop | Chrome | ⚠️ Limited (better on mobile) |
+
+### How to Use
+
+1. **Open the tracker**: [neelashkannan.github.io/ESP-Tag](https://neelashkannan.github.io/ESP-Tag/)
+2. Tap **"Start Scanning"**
+3. Select **"ESP32-AirTag"** from the device list
+4. Watch the real-time distance estimation!
+
+### Calibration (for accurate distance)
+
+1. Place your phone exactly **1 meter** from the ESP32
+2. Tap **"Calibrate at 1m"**
+3. The tracker will use this reference point for distance calculations
+
+### Install as App (PWA)
+
+On Android Chrome:
+1. Open the tracker website
+2. Tap the **menu (⋮)** → **"Add to Home Screen"**
+3. Launch from your home screen like a native app!
+
+### iOS Users
+
+iOS Safari doesn't support Web Bluetooth. Use the **Bluefy** browser instead:
+1. Install [Bluefy from App Store](https://apps.apple.com/app/bluefy-web-ble-browser/id1492822055)
+2. Open the tracker URL in Bluefy
+3. Grant Bluetooth permissions when prompted
+
+---
 
 ## 🐍 Python Tracker Setup
 
@@ -228,10 +284,11 @@ MIT License - Feel free to use and modify!
 
 ## 🔮 Future Improvements
 
+- [x] Web-based mobile tracker (GitHub Pages)
 - [ ] Add sound/haptic feedback when close
 - [ ] Multiple beacon tracking
 - [ ] Direction finding with multiple receivers
-- [ ] Mobile app (iOS/Android)
+- [ ] Native mobile app (iOS/Android)
 - [ ] UWB support for precise positioning (ESP32-U4 required)
 - [ ] Battery monitoring with actual ADC reading
 - [ ] OTA firmware updates
