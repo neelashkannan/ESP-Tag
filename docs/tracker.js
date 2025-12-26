@@ -1,149 +1,21 @@
 /**
- * ESP32 AirTag Web Tracker
- * Uses Web Bluetooth API for BLE scanning and distance estimation
+ * ESP32 AirTag Web Tracker v3.0
+ * 
+ * Receives distance data directly from ESP32 via BLE characteristic notifications.
+ * The ESP32 reads RSSI and calculates distance, then sends it to the web app.
  */
 
 // ══════════════════════════════════════════════════════════════
-// CONFIGURATION - Must match your ESP32 firmware
+// CONFIGURATION - Must match ESP32 firmware UUIDs
 // ══════════════════════════════════════════════════════════════
 const CONFIG = {
     DEVICE_NAME: "ESP32-AirTag",
     SERVICE_UUID: "8ec76ea3-6668-48da-9866-75be8bc86f4d",
-    DEFAULT_MEASURED_POWER: -45, // RSSI at 1 meter (calibrate for accuracy)
-    N_FREE_SPACE: 2.0,
-    N_INDOOR: 3.5,
-    SCAN_INTERVAL: 100, // ms between RSSI reads
-    TIMEOUT_MS: 3000,   // Consider device lost after this
+    DISTANCE_CHAR_UUID: "8ec76ea3-6668-48da-9866-75be8bc86f4e",
+    RSSI_CHAR_UUID: "8ec76ea3-6668-48da-9866-75be8bc86f4f",
+    CALIBRATE_CHAR_UUID: "8ec76ea3-6668-48da-9866-75be8bc86f50",
+    TIMEOUT_MS: 3000,
 };
-
-// ══════════════════════════════════════════════════════════════
-// ADAPTIVE KALMAN FILTER
-// ══════════════════════════════════════════════════════════════
-class AdaptiveKalmanFilter {
-    constructor(qBase = 0.02, r = 4.0) {
-        this.qBase = qBase;
-        this.r = r;
-        this.x = null;
-        this.p = 1.0;
-        this.prevInnovation = 0;
-    }
-
-    update(z) {
-        if (this.x === null) {
-            this.x = z;
-            return z;
-        }
-        
-        const innovation = z - this.x;
-        const innovationChange = Math.abs(innovation - this.prevInnovation);
-        const adaptiveQ = this.qBase * (1 + Math.min(innovationChange / 5.0, 5.0));
-        this.prevInnovation = innovation;
-        
-        this.p = this.p + adaptiveQ;
-        const k = this.p / (this.p + this.r);
-        this.x = this.x + k * innovation;
-        this.p = (1 - k) * this.p;
-        
-        return this.x;
-    }
-
-    reset() {
-        this.x = null;
-        this.p = 1.0;
-        this.prevInnovation = 0;
-    }
-}
-
-// ══════════════════════════════════════════════════════════════
-// DISTANCE KALMAN FILTER
-// ══════════════════════════════════════════════════════════════
-class DistanceKalmanFilter {
-    constructor(processNoise = 0.02, measurementNoise = 0.4) {
-        this.q = processNoise;
-        this.r = measurementNoise;
-        this.x = null;
-        this.p = 1.0;
-    }
-
-    update(z) {
-        if (this.x === null) {
-            this.x = z;
-            return z;
-        }
-        
-        this.p = this.p + this.q;
-        const k = this.p / (this.p + this.r);
-        this.x = this.x + k * (z - this.x);
-        this.p = (1 - k) * this.p;
-        
-        return this.x;
-    }
-
-    reset() {
-        this.x = null;
-        this.p = 1.0;
-    }
-}
-
-// ══════════════════════════════════════════════════════════════
-// DISTANCE ESTIMATOR
-// ══════════════════════════════════════════════════════════════
-class DistanceEstimator {
-    constructor() {
-        this.rssiFilter = new AdaptiveKalmanFilter(0.02, 4.0);
-        this.distFilter = new DistanceKalmanFilter();
-        this.rssiWindow = [];
-        this.windowSize = 20;
-        this.measuredPower = CONFIG.DEFAULT_MEASURED_POWER;
-        this.nExponent = CONFIG.N_FREE_SPACE;
-    }
-
-    calibrate(currentRssi) {
-        this.measuredPower = currentRssi;
-        console.log(`Calibrated: 1m Reference = ${this.measuredPower.toFixed(1)} dBm`);
-    }
-
-    estimate(rawRssi) {
-        // 1. Smooth RSSI
-        const smoothedRssi = this.rssiFilter.update(rawRssi);
-        
-        // 2. Update window
-        this.rssiWindow.push(rawRssi);
-        if (this.rssiWindow.length > this.windowSize) {
-            this.rssiWindow.shift();
-        }
-
-        // 3. Adaptive PLE based on variance
-        let confidence = 50;
-        if (this.rssiWindow.length > 10) {
-            const mean = this.rssiWindow.reduce((a, b) => a + b, 0) / this.rssiWindow.length;
-            const variance = this.rssiWindow.reduce((sum, x) => sum + Math.pow(x - mean, 2), 0) / this.rssiWindow.length;
-            const stdDev = Math.sqrt(variance);
-            
-            this.nExponent = CONFIG.N_FREE_SPACE + 
-                (Math.min(stdDev, 8.0) / 8.0) * (CONFIG.N_INDOOR - CONFIG.N_FREE_SPACE);
-            confidence = Math.max(0, 100 - (stdDev * 10));
-        }
-
-        // 4. Log-Distance Path Loss Model
-        const distanceRaw = Math.pow(10, (this.measuredPower - smoothedRssi) / (10 * this.nExponent));
-
-        // 5. Distance domain smoothing
-        const smoothedDistance = this.distFilter.update(distanceRaw);
-
-        return {
-            distance: smoothedDistance,
-            rssi: smoothedRssi,
-            confidence: confidence
-        };
-    }
-
-    reset() {
-        this.rssiFilter.reset();
-        this.distFilter.reset();
-        this.rssiWindow = [];
-    }
-}
 
 // ══════════════════════════════════════════════════════════════
 // UI CONTROLLER
@@ -208,12 +80,12 @@ class TrackerUI {
             this.elements.distanceValue.textContent = '—';
             this.elements.distanceValue.style.color = 'var(--accent-dim)';
             this.elements.rssiValue.textContent = '-- dBm';
-            this.elements.confValue.textContent = '--%';
+            this.elements.confValue.textContent = 'WAITING...';
             this.setAuraColor('#3F3F46');
             return;
         }
 
-        const { distance, rssi, confidence, rawRssi } = data;
+        const { distance, rssi, rawRssi } = data;
         const color = this.getColorForDistance(distance);
 
         // Distance
@@ -223,7 +95,15 @@ class TrackerUI {
 
         // Info
         this.elements.rssiValue.textContent = `${rssi.toFixed(0)} dBm (RAW: ${rawRssi})`;
-        this.elements.confValue.textContent = `${confidence.toFixed(0)}%`;
+        
+        // Show proximity description
+        let proxDesc = 'VERY FAR';
+        if (distance <= 1.0) proxDesc = 'VERY CLOSE';
+        else if (distance <= 3.0) proxDesc = 'CLOSE';
+        else if (distance <= 6.0) proxDesc = 'NEARBY';
+        else if (distance <= 10.0) proxDesc = 'FAR';
+        
+        this.elements.confValue.textContent = proxDesc;
         this.elements.confValue.style.color = color;
 
         // Aura
@@ -254,10 +134,11 @@ class BluetoothTracker {
         this.ui = ui;
         this.device = null;
         this.server = null;
-        this.estimator = new DistanceEstimator();
+        this.distanceChar = null;
+        this.calibrateChar = null;
         this.isConnected = false;
         this.lastSeen = 0;
-        this.rssiPollInterval = null;
+        this.deviceName = null;
     }
 
     async connect() {
@@ -265,46 +146,49 @@ class BluetoothTracker {
             this.ui.clearError();
             this.ui.setStatus('SCANNING...');
 
-            // Request device with filters
-            const options = {
+            // Request the device
+            this.device = await navigator.bluetooth.requestDevice({
                 filters: [
-                    { name: CONFIG.DEVICE_NAME },
-                    { services: [CONFIG.SERVICE_UUID] }
+                    { name: CONFIG.DEVICE_NAME }
                 ],
                 optionalServices: [CONFIG.SERVICE_UUID]
-            };
-
-            // Fallback for browsers that don't support name filter well
-            try {
-                this.device = await navigator.bluetooth.requestDevice(options);
-            } catch (e) {
-                // Try with acceptAllDevices if filters fail
-                this.device = await navigator.bluetooth.requestDevice({
-                    acceptAllDevices: true,
-                    optionalServices: [CONFIG.SERVICE_UUID]
-                });
-            }
+            });
 
             if (!this.device) {
                 throw new Error('No device selected');
             }
 
-            this.ui.setStatus('CONNECTING...');
-            
+            this.deviceName = this.device.name || 'ESP32-AirTag';
+            this.ui.setStatus('CONNECTING...', '#FBBF24');
+
             // Connect to GATT server
+            this.device.addEventListener('gattserverdisconnected', () => this.onDisconnect());
             this.server = await this.device.gatt.connect();
+
+            // Get service
+            const service = await this.server.getPrimaryService(CONFIG.SERVICE_UUID);
+
+            // Get distance characteristic and subscribe to notifications
+            this.distanceChar = await service.getCharacteristic(CONFIG.DISTANCE_CHAR_UUID);
+            await this.distanceChar.startNotifications();
+            this.distanceChar.addEventListener('characteristicvaluechanged', (event) => {
+                this.handleDistanceData(event.target.value);
+            });
+
+            // Get calibration characteristic for writing
+            try {
+                this.calibrateChar = await service.getCharacteristic(CONFIG.CALIBRATE_CHAR_UUID);
+            } catch (e) {
+                console.log('Calibration characteristic not available');
+            }
+
             this.isConnected = true;
             this.lastSeen = Date.now();
-
-            // Setup disconnect handler
-            this.device.addEventListener('gattserverdisconnected', () => this.onDisconnect());
-
-            // Show tracker UI
             this.ui.showTracker();
-            this.ui.setStatus(`CONNECTED: ${this.device.name || 'ESP32-AirTag'}`, '#10B981');
+            this.ui.setStatus(`CONNECTED: ${this.deviceName.toUpperCase()}`, '#10B981');
 
-            // Start RSSI polling
-            this.startRssiPolling();
+            // Start timeout checker
+            this.startTimeoutChecker();
 
         } catch (error) {
             console.error('Connection error:', error);
@@ -313,199 +197,96 @@ class BluetoothTracker {
         }
     }
 
-    getErrorMessage(error) {
-        if (error.name === 'NotFoundError') {
-            return 'No device found. Make sure your ESP32 is powered on and advertising.';
-        }
-        if (error.name === 'SecurityError') {
-            return 'Bluetooth permission denied. Please allow Bluetooth access.';
-        }
-        if (error.name === 'NotSupportedError') {
-            return 'Bluetooth not supported on this device/browser.';
-        }
-        return error.message || 'Failed to connect to device.';
-    }
+    handleDistanceData(dataView) {
+        try {
+            // Data format from ESP32:
+            // Bytes 0-3: distance (float, little endian)
+            // Byte 4: raw RSSI (as positive value)
+            // Bytes 5-8: smoothed RSSI (float, little endian)
 
-    startRssiPolling() {
-        // Note: Web Bluetooth doesn't directly expose RSSI during connection
-        // We need to use a workaround - reading RSSI via device.watchAdvertisements() 
-        // or simulating based on connection quality
-        
-        if ('watchAdvertisements' in this.device) {
-            // Modern approach using watchAdvertisements (Chrome 87+)
-            this.device.watchAdvertisements().then(() => {
-                this.device.addEventListener('advertisementreceived', (event) => {
-                    this.handleRssi(event.rssi);
-                });
-            }).catch(e => {
-                console.log('watchAdvertisements not available, using fallback');
-                this.startFallbackPolling();
+            const distance = dataView.getFloat32(0, true);  // Little endian
+            const rawRssi = -dataView.getUint8(4);          // Convert back to negative
+            const smoothedRssi = dataView.getFloat32(5, true);
+
+            this.lastSeen = Date.now();
+
+            this.ui.updateDisplay({
+                distance: distance,
+                rssi: smoothedRssi,
+                rawRssi: rawRssi
             });
-        } else {
-            this.startFallbackPolling();
+
+            const color = this.ui.getColorForDistance(distance);
+            this.ui.setStatus(`TRACKING: ${this.deviceName.toUpperCase()}`, color);
+
+        } catch (e) {
+            console.error('Error parsing distance data:', e);
         }
     }
 
-    startFallbackPolling() {
-        // Fallback: Reconnect periodically to get fresh RSSI
-        // This is a workaround since Web Bluetooth has limited RSSI support
-        this.rssiPollInterval = setInterval(async () => {
-            if (this.isConnected && this.server && this.server.connected) {
-                try {
-                    // Try to read a characteristic or just check connection
-                    const service = await this.server.getPrimaryService(CONFIG.SERVICE_UUID);
-                    this.lastSeen = Date.now();
-                    
-                    // Simulate RSSI based on connection stability
-                    // In real scenarios, you might read a characteristic that contains RSSI
-                    // For now, we'll use a placeholder
-                    this.ui.setStatus(`CONNECTED: ${this.device.name || 'ESP32-AirTag'}`, '#10B981');
-                } catch (e) {
-                    // Connection might be degraded
-                    console.log('Connection check failed:', e);
-                }
+    startTimeoutChecker() {
+        setInterval(() => {
+            if (this.isConnected && Date.now() - this.lastSeen > CONFIG.TIMEOUT_MS) {
+                this.ui.updateDisplay(null);
+                this.ui.setStatus('WAITING FOR DATA...', 'var(--text-secondary)');
             }
-        }, CONFIG.SCAN_INTERVAL);
+        }, 500);
     }
 
-    handleRssi(rssi) {
-        if (rssi === null || rssi === undefined) return;
-        
-        this.lastSeen = Date.now();
-        const result = this.estimator.estimate(rssi);
-        
-        this.ui.updateDisplay({
-            distance: result.distance,
-            rssi: result.rssi,
-            confidence: result.confidence,
-            rawRssi: rssi
-        });
-    }
+    async calibrate() {
+        if (!this.calibrateChar) {
+            this.ui.setStatus('CALIBRATION NOT AVAILABLE', '#EF4444');
+            return;
+        }
 
-    calibrate() {
-        if (this.estimator.rssiFilter.x !== null) {
-            this.estimator.calibrate(this.estimator.rssiFilter.x);
-            this.ui.setStatus('CALIBRATED SUCCESSFULLY', '#10B981');
+        try {
+            // Send calibration command (0x01 = auto-calibrate at current position)
+            const data = new Uint8Array([0x01]);
+            await this.calibrateChar.writeValue(data);
+            
+            this.ui.setStatus('CALIBRATED AT 1 METER!', '#10B981');
             setTimeout(() => {
                 if (this.isConnected) {
-                    this.ui.setStatus(`CONNECTED: ${this.device?.name || 'ESP32-AirTag'}`, '#10B981');
+                    this.ui.setStatus(`TRACKING: ${this.deviceName.toUpperCase()}`, '#10B981');
                 }
             }, 2000);
+        } catch (e) {
+            console.error('Calibration error:', e);
+            this.ui.setStatus('CALIBRATION FAILED', '#EF4444');
         }
     }
 
     onDisconnect() {
         this.isConnected = false;
-        this.estimator.reset();
-        
-        if (this.rssiPollInterval) {
-            clearInterval(this.rssiPollInterval);
-        }
-
         this.ui.updateDisplay(null);
         this.ui.setStatus('DISCONNECTED', '#EF4444');
-        
-        // Return to connect screen after delay
+
         setTimeout(() => {
             this.ui.showConnect();
             this.ui.setStatus('READY TO CONNECT');
         }, 2000);
     }
 
-    async disconnect() {
+    getErrorMessage(error) {
+        if (error.name === 'NotFoundError') {
+            return 'No ESP32-AirTag found. Make sure it\'s powered on and nearby.';
+        }
+        if (error.name === 'SecurityError') {
+            return 'Bluetooth permission denied. Please allow access.';
+        }
+        if (error.name === 'NotSupportedError') {
+            return 'Web Bluetooth not supported. Use Chrome on Android or Bluefy on iOS.';
+        }
+        if (error.message.includes('GATT')) {
+            return 'Connection failed. Try moving closer to the device.';
+        }
+        return error.message || 'Failed to connect to device.';
+    }
+
+    disconnect() {
         if (this.device && this.device.gatt.connected) {
             this.device.gatt.disconnect();
         }
-    }
-}
-
-// ══════════════════════════════════════════════════════════════
-// SCANNING TRACKER (Alternative approach using BLE scanning)
-// ══════════════════════════════════════════════════════════════
-class ScanningTracker {
-    constructor(ui) {
-        this.ui = ui;
-        this.estimator = new DistanceEstimator();
-        this.isScanning = false;
-        this.lastSeen = 0;
-        this.abortController = null;
-    }
-
-    async startScanning() {
-        if (!('bluetooth' in navigator) || !('requestLEScan' in navigator.bluetooth)) {
-            // Fall back to connection-based approach
-            return false;
-        }
-
-        try {
-            this.ui.clearError();
-            this.ui.setStatus('SCANNING...');
-
-            this.abortController = new AbortController();
-
-            const scan = await navigator.bluetooth.requestLEScan({
-                filters: [
-                    { name: CONFIG.DEVICE_NAME },
-                    { services: [CONFIG.SERVICE_UUID] }
-                ],
-                keepRepeatedDevices: true
-            }, { signal: this.abortController.signal });
-
-            this.isScanning = true;
-            this.ui.showTracker();
-
-            navigator.bluetooth.addEventListener('advertisementreceived', (event) => {
-                this.handleAdvertisement(event);
-            });
-
-            // Check for timeout
-            this.startTimeoutCheck();
-
-            return true;
-        } catch (error) {
-            console.log('Scanning not available:', error);
-            return false;
-        }
-    }
-
-    handleAdvertisement(event) {
-        const rssi = event.rssi;
-        this.lastSeen = Date.now();
-
-        const result = this.estimator.estimate(rssi);
-        
-        this.ui.updateDisplay({
-            distance: result.distance,
-            rssi: result.rssi,
-            confidence: result.confidence,
-            rawRssi: rssi
-        });
-
-        this.ui.setStatus(`TRACKING: ${event.device.name || 'ESP32-AirTag'}`, 
-            this.ui.getColorForDistance(result.distance));
-    }
-
-    startTimeoutCheck() {
-        setInterval(() => {
-            if (this.isScanning && Date.now() - this.lastSeen > CONFIG.TIMEOUT_MS) {
-                this.ui.updateDisplay(null);
-                this.ui.setStatus('SEARCHING FOR BEACON...', 'var(--text-secondary)');
-            }
-        }, 500);
-    }
-
-    calibrate() {
-        if (this.estimator.rssiFilter.x !== null) {
-            this.estimator.calibrate(this.estimator.rssiFilter.x);
-            this.ui.setStatus('CALIBRATED SUCCESSFULLY', '#10B981');
-        }
-    }
-
-    stopScanning() {
-        if (this.abortController) {
-            this.abortController.abort();
-        }
-        this.isScanning = false;
     }
 }
 
@@ -516,7 +297,6 @@ class App {
     constructor() {
         this.ui = new TrackerUI();
         this.tracker = null;
-        this.scanningTracker = null;
 
         this.init();
     }
@@ -531,31 +311,15 @@ class App {
         // Bind events
         this.ui.elements.connectBtn.addEventListener('click', () => this.startTracking());
         this.ui.elements.calibrateBtn.addEventListener('click', () => this.calibrate());
-
-        // Handle visibility changes
-        document.addEventListener('visibilitychange', () => {
-            if (document.hidden && this.tracker) {
-                // Could pause scanning to save battery
-            }
-        });
     }
 
     async startTracking() {
-        // Try scanning approach first (better for continuous tracking)
-        this.scanningTracker = new ScanningTracker(this.ui);
-        const scanningAvailable = await this.scanningTracker.startScanning();
-
-        if (!scanningAvailable) {
-            // Fall back to connection-based approach
-            this.tracker = new BluetoothTracker(this.ui);
-            await this.tracker.connect();
-        }
+        this.tracker = new BluetoothTracker(this.ui);
+        await this.tracker.connect();
     }
 
     calibrate() {
-        if (this.scanningTracker && this.scanningTracker.isScanning) {
-            this.scanningTracker.calibrate();
-        } else if (this.tracker && this.tracker.isConnected) {
+        if (this.tracker) {
             this.tracker.calibrate();
         }
     }
