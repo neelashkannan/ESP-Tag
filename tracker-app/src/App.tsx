@@ -53,7 +53,7 @@ const App: React.FC = () => {
 
       // Calibration Characteristic
       const cChar = await service?.getCharacteristic(CALIB_CHAR_UUID);
-      setCalibChar(cChar);
+      setCalibChar(cChar || null);
 
       setStatus('High-Precision Tracking');
 
