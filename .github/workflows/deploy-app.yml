@@ -3,9 +3,6 @@ name: Deploy Tracker App
 on:
   push:
     branches: [ "main" ]
-    paths:
-      - 'tracker-app/**'
-      - '.github/workflows/deploy-app.yml'
 
 permissions:
   contents: write
