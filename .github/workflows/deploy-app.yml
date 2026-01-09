@@ -1,0 +1,30 @@
+name: Deploy Tracker App
+
+on:
+  push:
+    branches: [ "main" ]
+    paths:
+      - 'tracker-app/**'
+      - '.github/workflows/deploy-app.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout 🛎️
+        uses: actions/checkout@v4
+
+      - name: Install and Build 🔧
+        working-directory: ./tracker-app
+        run: |
+          npm install
+          npm run build
+
+      - name: Deploy 🚀
+        uses: JamesIves/github-pages-deploy-action@v4
+        with:
+          folder: tracker-app/dist
+          branch: gh-pages

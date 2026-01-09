@@ -2,10 +2,13 @@
 
 This project transforms an **ESP32-S3 N16R8** into a trackable BLE tag similar to an AirTag or JioTag, complete with a high-end, minimal web-mobile application for distance tracking.
 
+**[🌐 Live App Demo](https://neelashkannan.github.io/ESP-Tag/)**
+
 ## 🚀 Features
-- **ESP32-S3 Firmware**: High-power BLE beacon broadcasting a custom service.
-- **Minimal Tracker App**: A React-based web app with a "Radar" UI using Web Bluetooth.
-- **Distance Estimation**: Real-time RSSI-based calculation for proximity.
+- **High-Precision Logic**: Dual-stage Kalman filter (on-board ESP32) for stable distance readings.
+- **Hardware Feedback**: RGB LED proximity indicators (Green < 1m, Yellow 2m, Red > 3.5m).
+- **One-Tap Calibration**: Calibrate the 1-meter baseline directly from the app.
+- **Modern Radar UI**: Minimalist tracker app built with React 19 and Tailwind 4.
 
 ---
 
