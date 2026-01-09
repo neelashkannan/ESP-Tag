@@ -15,7 +15,6 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install and Build 🔧
-        working-directory: ./tracker-app
         run: |
           npm install
           npm run build
@@ -23,5 +22,5 @@ jobs:
       - name: Deploy 🚀
         uses: JamesIves/github-pages-deploy-action@v4
         with:
-          folder: tracker-app/dist
+          folder: dist
           branch: gh-pages
