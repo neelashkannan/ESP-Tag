@@ -1,0 +1,11 @@
+# PlatformIO
+.pio
+.vscode
+*.orig
+*.swp
+
+# Node
+node_modules
+dist
+.env
+.DS_Store
