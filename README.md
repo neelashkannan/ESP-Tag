@@ -30,11 +30,10 @@ The firmware is located in the `firmware/` directory and is designed for Platfor
 
 ## 📱 App Setup (Tracker)
 
-The app is a Vite + React + Tailwind project located in `tracker-app/`.
+The app is a Vite + React + Tailwind project located in the root directory.
 
 ### 1. Installation
 ```bash
-cd tracker-app
 npm install
 ```
 
@@ -45,8 +44,8 @@ npm run dev
 
 ### 3. Usage on Mobile
 For the best experience (and to access Web Bluetooth), we recommend using **Chrome** on Android or **Bluefy** browser on iOS.
-1. Host the app via HTTPS (required for Web Bluetooth). You can use [Vercel](https://vercel.com) or [Netlify](https://netlify.com) for a quick deployment.
-2. Open the URL on your phone.
+1. The app is automatically hosted on **GitHub Pages** after every push to the `main` branch.
+2. Open the GitHub Pages URL on your phone.
 3. Click **START SCAN** and select your `MakersTag`.
 
 ---
