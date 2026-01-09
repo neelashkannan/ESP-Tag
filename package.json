@@ -1,5 +1,6 @@
 {
   "name": "tracker-app",
+  "homepage": "https://neelashkannan.github.io/ESP-Tag/",
   "private": true,
   "version": "0.0.0",
   "type": "module",
